@@ -81,6 +81,20 @@ class Game:
         self.tables_tab = Button(30, 610, 200, 60, "Tables")
 
 
+        self.blackjack_popup = PopupWindow(
+            self, 700, 500,
+            "How to Play Blackjack",
+            [
+                "• Goal: Get as close to 21 as possible without going over.",
+                "• You may Hit to draw a card.",
+                "• You may Stand to keep your total.",
+                "• You may Double to double your bet and draw one final card.",
+                "• No splitting in this version.",
+                "• Dealer hits on 16 and stands on 17.",
+                "• A natural 21 (first two cards) pays double."
+            ]
+        )
+
 
         self.running = True
 
@@ -107,13 +121,19 @@ class Game:
                     self.running = False
                     
                 if self.state == "GAME_SELECT" and self.blackjack_btn.is_clicked():
-                    self.state = "BLACKJACK"
+                    self.state = "BLACKJACK_RULES"
                 if self.state == "GAME_SELECT" and self.roulette_btn.is_clicked():
                     self.state = "ROULETTE"
                 if self.state == "GAME_SELECT" and self.letitride_btn.is_clicked():
                     self.state = "LETITRIDE"
                 if self.state == "GAME_SELECT" and self.slots_btn.is_clicked():
                     self.state = "SLOTS"
+                if self.state == "BLACKJACK_RULES":
+                    if self.blackjack_popup.is_play_clicked():
+                        self.fade()
+                        self.state = "BLACKJACK"
+                        self.fade_in()
+
                 if self.back_button.is_clicked():
                     if self.state == "STORE":  
                         self.fade()
@@ -181,6 +201,10 @@ class Game:
             self.slots_btn.draw(self.screen)
             self.back_button.draw(self.screen)
 
+            
+        elif self.state == "BLACKJACK_RULES":
+            self.blackjack_popup.draw(self.screen, self.background)
+            
             
         elif self.state == "STORE":
             self.screen.blit(self.shop_bg, (0, 0))

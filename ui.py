@@ -1,5 +1,6 @@
 import pygame
-from settings import WHITE, FONT_NAME
+from settings import *
+from buttons import Button
 
 def draw_text(surface, text, size, x, y):
     font = pygame.font.Font(FONT_NAME, size)
@@ -15,7 +16,7 @@ def draw_text_outline_shadow(
     outline_width=3,
     shadow_offset=15
 ):
-    font = pygame.font.Font(FONT_NAME, size)
+    font = pygame.font.Font(TITLE_FONT, size)
 
     # --- Drop Shadow ---
     shadow_surf = font.render(text, True, shadow_color)
@@ -106,3 +107,96 @@ class ShopItem:
 
         # Price
         draw_text_outline_shadow(surface, f"{self.price} chips", 24, self.rect.centerx, self.rect.bottom + 50)
+
+class PopupWindow:
+    def __init__(self, game, width, height, title, lines):
+        self.game = game
+        self.width = width
+        self.height = height
+        self.title = title
+        self.lines = lines  # list of strings
+
+        # Centered position
+        self.x = (game.WIDTH - width) // 2
+        self.y = (game.HEIGHT - height) // 2
+
+        # Play button inside popup
+        self.play_button = Button(
+            self.x + width//2 - 100,
+            self.y + height - 80,
+            200,
+            50,
+            "Play"
+        )
+        
+        # Font
+        self.font = pygame.font.Font(RULE_FONT, 22)
+        self.title_font = pygame.font.Font(RULE_FONT, 40)
+
+
+    def draw(self, surface, background):
+        # Draw the GAME_SELECT background behind popup
+        surface.blit(background, (0, 0))
+
+        # Transparent black rounded rectangle directly on the main surface
+        bg_rect = pygame.Rect(self.x, self.y, self.width, self.height)
+
+        # Create a transparent surface for the rounded rect
+        rounded = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        pygame.draw.rect(
+            rounded,
+            (0, 0, 0, 180),  # transparent black
+            (0, 0, self.width, self.height),
+            border_radius=20
+        )
+
+        # Blit the transparent rounded rectangle
+        surface.blit(rounded, (self.x, self.y))
+
+        # Draw white outline on top
+        pygame.draw.rect(
+            surface,
+            (255, 255, 255),
+            bg_rect,
+            width=4,
+            border_radius=20
+        )
+
+
+        # Title
+        draw_text_outline_shadow(
+            surface,
+            self.title,
+            48,
+            self.x + self.width//2,
+            self.y + 60,
+            text_color=(255, 255, 255),
+            outline_color=(0, 0, 0),
+            shadow_color=(0, 0, 0),
+            outline_width=3,
+            shadow_offset=4
+        )
+
+        # Body text
+        y_offset = self.y + 130
+        for line in self.lines:
+            draw_rule_text(
+                surface,
+                line,
+                self.font,
+                self.x + self.width//2,
+                y_offset
+            )
+
+            y_offset += 40
+
+        # Play button
+        self.play_button.draw(surface)
+
+    def is_play_clicked(self):
+        return self.play_button.is_clicked()
+    
+def draw_rule_text(surface, text, font, x, y, color=(255, 255, 255)):
+    text_surf = font.render(text, True, color)
+    text_rect = text_surf.get_rect(center=(x, y))
+    surface.blit(text_surf, text_rect)

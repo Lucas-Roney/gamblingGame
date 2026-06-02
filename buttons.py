@@ -53,7 +53,7 @@ class ImageButton:
         pygame.draw.rect(self.rounded_mask, (255, 255, 255), (0, 0, w, h), border_radius=20)
 
         self.label = label
-        self.font = pygame.font.Font(FONT_NAME, 40)
+        self.font = pygame.font.Font(TITLE_FONT, 40)
 
         self.hovered = False
 
