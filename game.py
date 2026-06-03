@@ -1,9 +1,10 @@
 import pygame
+import os
 from settings import *
 from ui import *
 from buttons import Button
 from buttons import ImageButton
-import os
+from blackjack_ui import BlackjackUI
 
 os.environ['SDL_VIDEO_WINDOW_POS'] = "0,30"
 
@@ -95,6 +96,8 @@ class Game:
             ]
         )
 
+        self.blackjack_ui = BlackjackUI(self.screen)
+
 
         self.running = True
 
@@ -132,7 +135,9 @@ class Game:
                     if self.blackjack_popup.is_play_clicked():
                         self.fade()
                         self.state = "BLACKJACK"
+                        self.blackjack_ui.start_round()
                         self.fade_in()
+                        
 
                 if self.back_button.is_clicked():
                     if self.state == "STORE":  
@@ -150,6 +155,8 @@ class Game:
                         self.shop_category = "TABLES"
 
 
+            if self.state == "BLACKJACK":
+                self.blackjack_ui.handle_event(event)
 
                     
             if event.type == pygame.KEYDOWN:
@@ -158,7 +165,9 @@ class Game:
 
 
     def update(self):
-        pass  # logic goes here
+        if self.state == "BLACKJACK":
+            self.blackjack_ui.update()
+
 
     def draw(self):
         self.screen.blit(self.background, (0, 0))
@@ -204,6 +213,10 @@ class Game:
             
         elif self.state == "BLACKJACK_RULES":
             self.blackjack_popup.draw(self.screen, self.background)
+            
+        elif self.state == "BLACKJACK":
+            self.blackjack_ui.draw()
+
             
             
         elif self.state == "STORE":
