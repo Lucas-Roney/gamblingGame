@@ -119,3 +119,38 @@ class ImageButton:
     def is_clicked(self):
         return self.rect.collidepoint(pygame.mouse.get_pos())
 
+class CircleButton:
+    def __init__(self, x, y, radius, text="x2"):
+        self.x = x
+        self.y = y
+        self.radius = radius
+        self.text = text
+
+        self.base_color = (200, 0, 0)
+        self.hover_color = (255, 50, 50)
+        self.border_color = (0, 0, 0)
+        self.text_color = (255, 255, 255)
+
+        self.font = pygame.font.SysFont(None, 40)
+
+    def draw(self, surface):
+        mouse = pygame.mouse.get_pos()
+        hovered = (mouse[0] - self.x)**2 + (mouse[1] - self.y)**2 <= self.radius**2
+
+        color = self.hover_color if hovered else self.base_color
+
+        pygame.draw.circle(surface, color, (self.x, self.y), self.radius)
+        pygame.draw.circle(surface, self.border_color, (self.x, self.y), self.radius, width=3)
+
+        text_surf = self.font.render(self.text, True, self.text_color)
+        text_rect = text_surf.get_rect(center=(self.x, self.y))
+        surface.blit(text_surf, text_rect)
+
+    def is_clicked(self):
+        mouse = pygame.mouse.get_pos()
+        pressed = pygame.mouse.get_pressed()[0]
+
+        dx = mouse[0] - self.x
+        dy = mouse[1] - self.y
+
+        return pressed and (dx*dx + dy*dy <= self.radius*self.radius)

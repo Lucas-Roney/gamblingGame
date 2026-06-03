@@ -1,6 +1,10 @@
 import pygame
+import os
 from blackjack import BlackjackGame
 from buttons import Button
+from buttons import CircleButton
+from card_cosmetics import CardCosmetics
+from settings import *
 
 class BlackjackUI:
     def __init__(self, screen):
@@ -19,21 +23,54 @@ class BlackjackUI:
         # Background
         self.background = pygame.image.load("assets/images/blackjack_table.png").convert()
 
+        # --- Load card faces ---
+        self.card_images = {}
+
+        face_folder = "assets/images/cards/faces"
+        CARD_HEIGHT = 200  # adjust later if needed
+
+        def scale_preserve_aspect(img, target_height):
+            ratio = img.get_width() / img.get_height()
+            target_width = int(target_height * ratio)
+            return pygame.transform.smoothscale(img, (target_width, target_height))
+
+        for filename in os.listdir(face_folder):
+            if filename.endswith(".png"):
+                key = filename.replace(".png", "")  # e.g. "AH"
+                path = os.path.join(face_folder, filename)
+
+                img = pygame.image.load(path).convert_alpha()
+                img = scale_preserve_aspect(img, CARD_HEIGHT)
+
+                self.card_images[key] = img
+
         # Layout positions
-        self.dealer_pos = (screen.get_width() // 2 - 150, 40)
-        self.deck_pos = (screen.get_width() // 2 + 200, 40)
-        self.player_pos = (screen.get_width() // 2 - 150, screen.get_height() - 220)
+        self.dealer_pos = (screen.get_width() // 2 - 90, 60)
+        self.deck_pos = (screen.get_width() // 2 + 230, 60)
+        self.player_pos = (screen.get_width() // 2 - 90, screen.get_height() - 200)
         self.money_pos = (40, screen.get_height() - 60)
 
         # Action buttons
-        self.buttons = {
-            "hit": pygame.Rect(screen.get_width()//2 - 200, screen.get_height() - 100, 120, 50),
-            "stand": pygame.Rect(screen.get_width()//2 - 60, screen.get_height() - 100, 120, 50),
-            "double": pygame.Rect(screen.get_width()//2 + 80, screen.get_height() - 100, 120, 50),
-        }
+        self.hit_button = Button(200, screen.get_height() - 230, 150, 60, "HIT")
+        self.stand_button = Button(screen.get_width() - 350, screen.get_height() - 230, 150, 60, "STAND")
+        self.double_button = CircleButton(screen.get_width() // 2 - 193, screen.get_height() - 77, 40, "x2")
+
 
         self.message = ""
         self.show_dealer_hole = False
+        self.cosmetics = CardCosmetics()
+        
+        # Load card faces
+        self.card_images = {}
+        face_folder = "assets/images/cards/faces"
+
+        for filename in os.listdir(face_folder):
+            if filename.endswith(".png"):
+                key = filename.replace(".png", "")  # e.g. "AH"
+                img = pygame.image.load(os.path.join(face_folder, filename)).convert_alpha()
+                img = pygame.transform.scale(img, (105, 150))
+                self.card_images[key] = img
+
 
     # --------------------------------------------------
 
@@ -69,9 +106,11 @@ class BlackjackUI:
 
         # Normal gameplay
         self.draw_hands()
-        self.draw_buttons()
+        self.hit_button.draw(self.screen)
+        self.stand_button.draw(self.screen)
+        self.double_button.draw(self.screen)
         self.draw_money()
-        self.draw_message()
+        self.draw_player_total()
 
         # Result overlay
         self.draw_result_overlay()
@@ -116,14 +155,14 @@ class BlackjackUI:
         x, y = self.dealer_pos
         for i, card in enumerate(self.game.dealer.cards):
             if i == 1 and not self.show_dealer_hole:
-                self.draw_card_back(x + i*80, y)
+                self.draw_card_back(x + i*40, y)
             else:
                 self.draw_card(card, x + i*80, y)
 
         # Player
         x, y = self.player_pos
         for i, card in enumerate(self.game.player.cards):
-            self.draw_card(card, x + i*80, y)
+            self.draw_card(card, x + i*40, y)
 
         # Deck
         self.draw_card_back(*self.deck_pos)
@@ -131,16 +170,22 @@ class BlackjackUI:
     # --------------------------------------------------
 
     def draw_card(self, card, x, y):
-        pygame.draw.rect(self.screen, (255, 255, 255), (x, y, 70, 100))
-        pygame.draw.rect(self.screen, (0, 0, 0), (x, y, 70, 100), 2)
+        key = f"{card.rank}{card.suit}"  # ex "AH"
+        img = self.card_images.get(key)
 
-        font = pygame.font.SysFont(None, 32)
-        text = font.render(f"{card.rank}{card.suit}", True, (0, 0, 0))
-        self.screen.blit(text, (x + 10, y + 10))
+        if img:
+            self.screen.blit(img, (x, y))
+        else:
+            # fallback if missing
+            pygame.draw.rect(self.screen, (255, 255, 255), (x, y, 70, 100))
+            pygame.draw.rect(self.screen, (0, 0, 0), (x, y, 70, 100), 2)
+
 
     def draw_card_back(self, x, y):
-        pygame.draw.rect(self.screen, (0, 0, 150), (x, y, 70, 100))
-        pygame.draw.rect(self.screen, (255, 255, 255), (x, y, 70, 100), 2)
+        img = self.cosmetics.get_card_back()
+        self.screen.blit(img, (x, y))
+
+
 
     # --------------------------------------------------
 
@@ -168,13 +213,19 @@ class BlackjackUI:
         self.screen.blit(money_text, self.money_pos)
 
     # --------------------------------------------------
+        
+    def draw_player_total(self):
+        total = self.game.player.total()
 
-    def draw_message(self):
-        if not self.message:
-            return
-        font = pygame.font.SysFont(None, 48)
-        text = font.render(self.message, True, (255, 255, 255))
-        self.screen.blit(text, (self.screen.get_width()//2 - text.get_width()//2, 20))
+        font = pygame.font.Font(BUTTON_FONT, 25)
+        text = font.render(f"Total: {total}", True, (255, 255, 255))
+
+        # Center it under the player's hand
+        x = self.player_pos[0] + 20  # adjust if needed
+        y = self.player_pos[1] + 158
+        # just below the cards
+
+        self.screen.blit(text, (x, y))
 
     # --------------------------------------------------
 
@@ -210,13 +261,23 @@ class BlackjackUI:
         if event.type == pygame.MOUSEBUTTONDOWN:
             mx, my = event.pos
 
-            if self.buttons["hit"].collidepoint(mx, my):
-                self.message = self.game.player_hit()
+            if self.hit_button.is_clicked():
+                self.hit()
 
-            elif self.buttons["stand"].collidepoint(mx, my):
-                self.show_dealer_hole = True
-                self.message = self.game.player_stand()
+            if self.stand_button.is_clicked():
+                self.stand()
 
-            elif self.buttons["double"].collidepoint(mx, my):
-                self.show_dealer_hole = True
-                self.message = self.game.player_double()
+            if self.double_button.is_clicked():
+                self.double_down()
+    def hit(self):
+        self.message = self.game.player_hit()
+
+    def stand(self):
+        self.show_dealer_hole = True
+        self.message = self.game.player_stand()
+
+    def double_down(self):
+        self.show_dealer_hole = True
+        self.message = self.game.player_double()
+
+

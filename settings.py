@@ -8,6 +8,4 @@ GREEN = (0, 120, 0)
 
 TITLE_FONT = "assets/fonts/AnandaBlackPersonalUseRegular-rg9Rx.ttf"
 RULE_FONT = "assets/fonts/OpenSans-VariableFont_wdth,wght.ttf"
-
-
-
+BUTTON_FONT = "assets/fonts/PlayfairDisplaySC-Black.ttf"

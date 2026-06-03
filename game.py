@@ -162,6 +162,11 @@ class Game:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
+                    
+            # DEV FUNCTION
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_j:
+                    self.state = "BLACKJACK"
 
 
     def update(self):
