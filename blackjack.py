@@ -39,9 +39,12 @@ class Hand:
 class BlackjackGame:
     def __init__(self, num_decks=1):
         self.deck = Deck(num_decks)
+        self.deck.shuffle()
         self.player = Hand()
         self.dealer = Hand()
+        self.chip_bank = None
         self.in_round = False
+        self.can_double = True
         
         self.player_money = 1000
         self.current_bet = 0
@@ -56,8 +59,10 @@ class BlackjackGame:
         
         # Reshuffling if needed
         if len(self.deck.cards) < 13:
-            self.deck = Deck(1)
-        self.deck.shuffle()
+            new_deck = Deck(1)
+            new_deck.shuffle()
+            self.deck.cards.extend(new_deck.cards)  
+
         
         # Deal initial cards
         self.dealer.add_card(self.deck.deal())
@@ -82,9 +87,12 @@ class BlackjackGame:
         # Deal the player a card
         self.player.add_card(self.deck.deal())
         
-        #Check for bust
+        # Check for bust
         if self.player.is_bust():
             return "player_bust"
+    
+        # Disable doubling and return
+        self.can_double = False
         return "continue"
     
     def player_stand(self):
@@ -139,16 +147,20 @@ class BlackjackGame:
         return True
 
     def payout(self, result):
-        if result == "player_win":
+        if result == "player_win" or result == "dealer_bust":
             self.player_money += self.current_bet * 2
         elif result == "push":
             self.player_money += self.current_bet
         elif result == "player_blackjack":
-            self.player_money += int(self.current_bet * 2.5)
+            self.player_money += int(self.current_bet * 3)
             
         # Reset bet after payout
         self.current_bet = 0
+        
+    def set_player_money(self, amount):
+        self.player_money = amount
 
     def reset_round(self):
         self.current_bet = 0
         self.in_round = False
+        self.can_double = True

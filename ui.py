@@ -153,10 +153,10 @@ class PopupWindow:
         # Blit the transparent rounded rectangle
         surface.blit(rounded, (self.x, self.y))
 
-        # Draw white outline on top
+        # Draw yellow outline on top
         pygame.draw.rect(
             surface,
-            (255, 255, 255),
+            (240, 255, 17),
             bg_rect,
             width=4,
             border_radius=20

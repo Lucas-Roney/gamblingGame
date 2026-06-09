@@ -118,6 +118,68 @@ class ImageButton:
 
     def is_clicked(self):
         return self.rect.collidepoint(pygame.mouse.get_pos())
+    
+class no_mask_ImageButton:
+    def __init__(self, x, y, w, h, image_path, label):
+        self.rect = pygame.Rect(x, y, w, h)
+
+        # Load and scale image
+        self.image = pygame.image.load(image_path).convert_alpha()
+        self.image = pygame.transform.scale(self.image, (w, h))
+        
+        self.rounded_mask = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.rect(self.rounded_mask, (255, 255, 255), (0, 0, w, h), border_radius=40)
+
+
+        self.label = label
+        self.font = pygame.font.Font(BUTTON_FONT, 21)
+
+        self.hovered = False
+
+    def draw_text(self, surface, text, center):
+        # Main text
+        text_surf = self.font.render(text, True, (255, 255, 255))
+        text_rect = text_surf.get_rect(center=center)
+        surface.blit(text_surf, text_rect)
+
+    def draw(self, surface):
+        mouse_pos = pygame.mouse.get_pos()
+        self.hovered = self.rect.collidepoint(mouse_pos)
+
+        # Hover scale effect
+        if self.hovered:
+            img = pygame.transform.scale(self.image, (self.rect.width + 10, self.rect.height + 10))
+            img_pos = (self.rect.x - 5, self.rect.y - 5)
+            self.font = pygame.font.Font(BUTTON_FONT, 24)
+        else:
+            img = self.image
+            img_pos = self.rect.topleft
+            self.font = pygame.font.Font(BUTTON_FONT, 21)
+
+        # Blit image
+        masked = pygame.Surface(img.get_size(), pygame.SRCALPHA)
+        masked.blit(img, (0, 0))
+
+        # Draw image
+        surface.blit(masked, img_pos)
+
+
+        # Glow border on hover
+        if self.hovered:
+            cx = self.rect.centerx + 1
+            cy = self.rect.centery + 1
+
+            # radius slightly larger than the chip
+            radius = max(self.rect.width, self.rect.height) // 2 + 8
+
+            pygame.draw.circle(surface, (255, 215, 0), (cx, cy), radius, width=4)
+
+
+        # Draw text
+        self.draw_text(surface, self.label, self.rect.center)
+
+    def is_clicked(self):
+        return self.rect.collidepoint(pygame.mouse.get_pos())
 
 class CircleButton:
     def __init__(self, x, y, radius, text="x2"):

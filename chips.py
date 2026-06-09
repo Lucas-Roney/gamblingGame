@@ -10,3 +10,9 @@ class ChipBank:
 
     def subtract(self, amount):
         self.balance -= amount
+
+    def get_balance(self):
+        return self.balance
+    
+    def set_balance(self, amount):
+        self.balance = amount

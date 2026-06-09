@@ -5,6 +5,7 @@ from ui import *
 from buttons import Button
 from buttons import ImageButton
 from blackjack_ui import BlackjackUI
+from chips import ChipBank
 
 os.environ['SDL_VIDEO_WINDOW_POS'] = "0,30"
 
@@ -30,6 +31,9 @@ class Game:
 
         # Game states
         self.state = "MENU"
+        
+        # Chips
+        self.chips = ChipBank(1000)
 
         # Play button
         self.play_button = Button(self.WIDTH//2 - 100, self.HEIGHT//2 - 60, 200, 60, "Play")
@@ -96,7 +100,7 @@ class Game:
             ]
         )
 
-        self.blackjack_ui = BlackjackUI(self.screen)
+        self.blackjack_ui = BlackjackUI(self.screen, self.chips)
 
 
         self.running = True
