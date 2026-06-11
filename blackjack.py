@@ -45,6 +45,7 @@ class BlackjackGame:
         self.chip_bank = None
         self.in_round = False
         self.can_double = True
+        self.player_doubled = False
         
         self.player_money = 1000
         self.current_bet = 0

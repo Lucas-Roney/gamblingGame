@@ -14,6 +14,9 @@ class BlackjackUI:
         self.game = BlackjackGame()
         self.game.player_money = chips.get_balance()
         self.in_betting_phase = True
+        self.can_double = True
+        self.game.player_doubled = False
+        self.show_action_buttons = True
         self.deal_sequence = []
         self.dealt_cards = set()
         self.dealing_in_progress = False
@@ -89,10 +92,14 @@ class BlackjackUI:
                 img = pygame.transform.scale(img, (105, 150))
                 self.card_images[key] = img
                 
+        # Animations
         self.animations = []
         self.animating = False
         
-        self.chip_animation = None
+        self.chip_animations = []
+        
+        self.in_double_down_animation = False
+        self.dd_phase = None
 
 
 
@@ -103,6 +110,8 @@ class BlackjackUI:
         self.message = self.game.start_round()
         self.show_dealer_hole = False
         self.can_double = True
+        self.game.player_doubled = False
+        self.show_action_buttons = True
 
         # Clear old animations and sequence
         self.animations.clear()
@@ -148,7 +157,13 @@ class BlackjackUI:
             "player_blackjack", "dealer_blackjack"
         }
 
-        if self.message in FINAL_RESULTS and not self.dealing_in_progress and not self.result_handled:
+        if (
+            self.message in FINAL_RESULTS 
+            and not self.dealing_in_progress 
+            and not self.result_handled
+            and not self.in_double_down_animation
+        ):
+            
             self.result_handled = True
             self.show_dealer_hole = True
             self.draw()
@@ -157,27 +172,37 @@ class BlackjackUI:
             # Draw final table
             self.draw()
 
-            # Fade out
-            self.fade()
-
-            # Draw overlay
-            self.draw_result_overlay()
-            self.pause(90)
-            # Fade in
-            self.fade_in()
+            # Show result
+            self.show_result_with_fade()
             
+            # PLAYER WIN
             if self.message in {"player_win", "player_blackjack", "dealer_bust"}:
-                self.animate_chip(direction="down")
+                chip_count = 4 if self.game.player_doubled else 2
 
+                # 1) show chips sitting on the table
+                self.show_static_chips(chip_count, direction="down")
+                self.draw()
+                self.pause(45)
+
+                # 2) now give them speed so they move
+                for anim in self.chip_animations:
+                    anim["speed"] = 3  # or whatever you like
+
+            # DEALER WIN
             elif self.message in {"dealer_win", "dealer_blackjack", "player_bust"}:
-                self.animate_chip(direction="up")
+                chip_count = 2 if self.game.player_doubled else 1
+                self.animate_chip(direction="up", count=chip_count, speed=8)
 
+            # PUSH
             elif self.message == "push":
-                self.animate_chip(direction="down")
+                chip_count = 2 if self.game.player_doubled else 1
+                self.animate_chip(direction="down", count=chip_count)
+
+
 
 
             # Wait for chip animation to finish
-            while self.chip_animation:
+            while self.chip_animations:
                 self.update()   # allow animation time to advance
                 self.draw()
                 self.clock.tick(60)
@@ -197,7 +222,7 @@ class BlackjackUI:
             self.result_handled = False
 
 
-        # Handle dealing card updates (Keep this block exactly as you have it)
+        # Handle dealing card updates
         if self.animating:
             dt = 1 / 60  
             finished = []
@@ -217,25 +242,63 @@ class BlackjackUI:
             if not self.animations:
                 self.animating = False
                 self.dealing_in_progress = False
+                return  # ← add this
                 
         # Chip animation update
-        if self.chip_animation:
-            anim = self.chip_animation
+        if self.chip_animations:
+            for anim in self.chip_animations:
+                if anim["direction"] == "up":
+                    anim["y"] -= anim["speed"]
+                else:
+                    anim["y"] += anim["speed"]
 
-            if anim["direction"] == "up":
-                anim["y"] -= anim["speed"]
-            elif anim["direction"] == "down":
-                anim["y"] += anim["speed"]
+            # Remove chips that are off-screen
+            self.chip_animations = [
+                anim for anim in self.chip_animations
+                if -200 < anim["y"] < self.screen.get_height() + 200
+            ]
 
-            # Remove when off-screen
-            if anim["y"] < -200 or anim["y"] > self.screen.get_height() + 200:
-                self.chip_animation = None
+            if not self.chip_animations:
                 self.selected_chip_image = None
 
+        # Handle double-down phase sequencing
+        if self.in_double_down_animation and not self.animating and not self.dealing_in_progress:
 
-    def fade(self, speed=5):
-        # Draw without forcing a display flip so we can copy a clean buffer
-        self.draw()
+            if self.dd_phase == "player_card":
+                # Player card just finished — pause, then reveal hole card
+                self.dd_phase = "reveal_hole"
+                self.draw()
+                self.pause(30)
+                self.show_dealer_hole = True
+                self.draw()
+                self.pause(30)
+
+                # Queue dealer draws if any
+                old_cards = self._dd_old_dealer_cards
+                new_cards = self._dd_new_dealer_cards
+
+                if len(new_cards) > len(old_cards):
+                    self.dd_phase = "dealer_cards"
+                    self.dealing_in_progress = True
+                    for i in range(len(old_cards), len(new_cards)):
+                        card = new_cards[i]
+                        end_x = self.dealer_pos[0] + (i * 40)
+                        end_y = self.dealer_pos[1]
+                        self.deal_sequence.append((card, (end_x, end_y)))
+                    self.start_next_deal_animation()
+                else:
+                    # No dealer draws needed, fully done
+                    self.dd_phase = None
+                    self.in_double_down_animation = False
+
+            elif self.dd_phase == "dealer_cards":
+                # Dealer cards finished animating — fully done
+                self.dd_phase = None
+                self.in_double_down_animation = False
+
+
+    def show_result_with_fade(self, speed=5):
+        # Step 1: fade down
         snapshot = self.screen.copy()
         fade_surface = pygame.Surface(snapshot.get_size(), pygame.SRCALPHA)
 
@@ -243,18 +306,27 @@ class BlackjackUI:
             self.screen.blit(snapshot, (0, 0))
             fade_surface.fill((0, 0, 0, alpha))
             self.screen.blit(fade_surface, (0, 0))
-            pygame.display.flip()  # Smoothly flip the transition frames instead
+            pygame.display.flip()
             self.clock.tick(60)
 
-    def fade_in(self, speed=5):
-        # Draw the NEW state to the backbuffer quietly without showing it yet
-        self.draw()
-        snapshot = self.screen.copy()
-        fade_surface = pygame.Surface(snapshot.get_size(), pygame.SRCALPHA)
+        # Step 2: show overlay on darkened screen, hold it
+        self.screen.blit(snapshot, (0, 0))
+        fade_surface.fill((0, 0, 0, 150))
+        self.screen.blit(fade_surface, (0, 0))
+        self.draw_result_overlay()
+        pygame.display.flip()
+        
+        # Step 3: pause with overlay visible
+        overlay_snapshot = self.screen.copy()
+        for _ in range(90):
+            self.screen.blit(overlay_snapshot, (0, 0))
+            pygame.display.flip()
+            self.clock.tick(60)
 
+        # Step 4: fade back up without overlay
         for alpha in range(150, -1, -speed):
             self.screen.blit(snapshot, (0, 0))
-            fade_surface.fill((0, 0, 0, max(0, alpha)))
+            fade_surface.fill((0, 0, 0, alpha))
             self.screen.blit(fade_surface, (0, 0))
             pygame.display.flip()
             self.clock.tick(60)
@@ -303,25 +375,26 @@ class BlackjackUI:
             else:
                 self.draw_card(anim_card["card"], x, y)
 
-        # Chip anim
-        if self.chip_animation:
-            anim = self.chip_animation
-            img = anim["image"]
-            self.screen.blit(img, (anim["x"], anim["y"]))
+        # Draw chip animations
+        if self.chip_animations:
+            for anim in self.chip_animations:
+                self.screen.blit(anim["image"], (anim["x"], anim["y"]))
         else:
             if self.selected_chip_image:
                 self.screen.blit(self.selected_chip_image, self.selected_chip_pos)
 
 
-                # ALWAYS draw UI elements
-                self.hit_button.draw(self.screen)
-                self.stand_button.draw(self.screen)
-                if self.game.can_double:
-                    self.double_button.draw(self.screen)
+        # Action Buttons
+        if self.show_action_buttons and self.message != "player_bust" and self.message != "dealer_blackjack" and self.message != "player_blackjack":
+            self.hit_button.draw(self.screen)
+            self.stand_button.draw(self.screen)
+            if self.game.can_double:
+                self.double_button.draw(self.screen)
 
-                self.draw_money()
-                self.draw_player_total()
-                self.draw_dealer_total()
+
+        self.draw_money()
+        self.draw_player_total()
+        self.draw_dealer_total()
 
         pygame.display.flip()
 
@@ -360,8 +433,8 @@ class BlackjackUI:
     # --------------------------------------------------
 
     def draw_hands(self):
-        # Skip if dealing
-        if self.dealing_in_progress:
+        # Skip if dealing or mid double-down sequence
+        if self.dealing_in_progress or self.in_double_down_animation:
             self.draw_partial_hands()
             return
 
@@ -425,10 +498,17 @@ class BlackjackUI:
             if card not in self.dealt_cards:
                 continue
 
+            # During double-down player card phase, keep hole card hidden
+            if self.dd_phase == "player_card" and i == 1:
+                self.draw_card_back(x + i*40, y)
+                continue
+
+            # Normal behavior
             if i == 1 and not self.show_dealer_hole:
                 self.draw_card_back(x + i*40, y)
             else:
                 self.draw_card(card, x + i*40, y)
+
 
         # Player
         x, y = self.player_pos
@@ -617,6 +697,7 @@ class BlackjackUI:
 
     def stand(self):
         self.show_dealer_hole = True
+        self.show_action_buttons = False
         self.draw()
         self.draw_dealer_total()
         self.pause(45)
@@ -638,20 +719,44 @@ class BlackjackUI:
             self.start_next_deal_animation()
 
     def double_down(self):
-        self.show_dealer_hole = True
-        self.draw_hands()
-        self.pause(45)
+        self.dd_phase = "player_card"
+        self.in_double_down_animation = True
+
+        # Double chips visually
+        self.chip_animations = [
+            {
+                "image": self.selected_chip_image,
+                "x": self.selected_chip_pos[0] - 20,
+                "y": self.selected_chip_pos[1],
+                "direction": "down",
+                "speed": 0
+            },
+            {
+                "image": self.selected_chip_image,
+                "x": self.selected_chip_pos[0] + 20,
+                "y": self.selected_chip_pos[1],
+                "direction": "down",
+                "speed": 0
+            }
+        ]
+
+        self.show_action_buttons = False
+        self.game.player_doubled = True
+        self.dealing_in_progress = True
+
         num_cards_before = len(self.game.player.cards)
-        
+        self._dd_old_dealer_cards = list(self.game.dealer.cards)
+
+        # Run backend logic
         self.message = self.game.player_double()
+        self._dd_new_dealer_cards = self.game.dealer.cards
+
+        # Animate only the player's new card
+        new_card = self.game.player.cards[-1]
+        end_x = self.player_pos[0] + (num_cards_before * 40)
+        end_y = self.player_pos[1]
+        self.animate_card(new_card, self.deck_pos, (end_x, end_y))
         
-        if len(self.game.player.cards) > num_cards_before:
-            new_card = self.game.player.cards[-1]
-            end_x = self.player_pos[0] + (num_cards_before * 40)
-            end_y = self.player_pos[1]
-            
-            self.dealing_in_progress = True
-            self.animate_card(new_card, self.deck_pos, (end_x, end_y))
         
     # --------------------------------------------------
         
@@ -743,20 +848,40 @@ class BlackjackUI:
     
     # --------------------------------------------------
     
-    def animate_chip(self, direction="up", speed=8):
+    def animate_chip(self, direction="up", count=1, speed=3):
         if not self.selected_chip_image:
             return
 
         x, y = self.selected_chip_pos
+        self.chip_animations = []
 
-        self.chip_animation = {
-            "image": self.selected_chip_image,
-            "x": x,
-            "y": y,
-            "direction": direction,
-            "speed": speed
-        }
+        # Spread chips horizontally by 40px each
+        spacing = 40
+        start_offset = -(count - 1) * spacing // 2
 
+        for i in range(count):
+            self.chip_animations.append({
+                "image": self.selected_chip_image,
+                "x": x + start_offset + i * spacing,
+                "y": y,
+                "direction": direction,
+                "speed": speed
+            })
+            
+    def show_static_chips(self, count, direction="down"):
+        if not self.selected_chip_image:
+            return
 
+        x, y = self.selected_chip_pos
+        spacing = 40
+        start_offset = -(count - 1) * spacing // 2
 
-
+        self.chip_animations = []
+        for i in range(count):
+            self.chip_animations.append({
+                "image": self.selected_chip_image,
+                "x": x + start_offset + i * spacing,
+                "y": y,
+                "direction": direction,
+                "speed": 0   # static for now
+            })
