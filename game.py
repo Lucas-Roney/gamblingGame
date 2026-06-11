@@ -101,6 +101,7 @@ class Game:
         )
 
         self.blackjack_ui = BlackjackUI(self.screen, self.chips)
+        self.blackjack_ui.game_ref = self
 
 
         self.running = True
@@ -165,12 +166,26 @@ class Game:
                     
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    self.running = False
-                    
-            # DEV FUNCTION
-            if event.type == pygame.KEYDOWN:
+                    if self.state == "GAME_SELECT":
+                        self.state = "MENU"
+                        
+                    elif self.state == "STORE":
+                        self.fade()
+                        self.state = "MENU"
+                        self.fade_in()
+                        
+                    elif self.state == "BLACKJACK_RULES":
+                        self.state = "GAME_SELECT"
+                        
+                    elif self.state != "MENU":
+                        self.pause_screen()
+
+                # DEV FUNCTIONS
                 if event.key == pygame.K_j:
                     self.state = "BLACKJACK"
+                    
+                if event.key == pygame.K_SPACE:
+                    self.running = False
 
 
     def update(self):
@@ -259,6 +274,17 @@ class Game:
         fade_surface = pygame.Surface(snapshot.get_size(), pygame.SRCALPHA)
 
         for alpha in range(0, 255, speed):
+            
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                    pygame.quit()
+                    return
+                
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.pause_screen()
+            
             fade_surface.fill((0, 0, 0, alpha))
             self.screen.blit(snapshot, (0, 0))
             self.screen.blit(fade_surface, (0, 0))
@@ -273,8 +299,99 @@ class Game:
         fade_surface = pygame.Surface(snapshot.get_size(), pygame.SRCALPHA)
 
         for alpha in range(255, 0, -speed):
+            
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                    pygame.quit()
+                    return
+                
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.pause_screen()
+
+            
             fade_surface.fill((0, 0, 0, alpha))
             self.screen.blit(snapshot, (0, 0))
             self.screen.blit(fade_surface, (0, 0))
+            pygame.display.update()
+            self.clock.tick(60)
+
+    def pause_screen(self):
+        snapshot = self.screen.copy()
+
+        # Dark overlay
+        fade_surface = pygame.Surface(snapshot.get_size(), pygame.SRCALPHA)
+        fade_surface.fill((0, 0, 0, 180))
+
+        # Draw paused frame
+        self.screen.blit(snapshot, (0, 0))
+        self.screen.blit(fade_surface, (0, 0))
+
+        # --- CREATE BUTTONS ---
+        btn_w, btn_h = 260, 70
+        center_x = self.WIDTH // 2
+
+        resume_btn = Button(center_x - btn_w//2, 250, btn_w, btn_h, "Resume")
+        help_btn   = Button(center_x - btn_w//2, 350, btn_w, btn_h, "Help")
+        menu_btn   = Button(center_x - btn_w//2, 450, btn_w, btn_h, "Menu")
+
+        buttons = [resume_btn, help_btn, menu_btn]
+
+        paused = True
+        while paused:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    return "exit"
+
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+
+                    # --- RESUME ---
+                    if resume_btn.is_clicked():
+                        return
+
+                    # --- HELP (inline logic, no method call) ---
+                    if help_btn.is_clicked():
+                        if self.state == "BLACKJACK":
+
+                            showing_help = True
+                            while showing_help:
+                                for e in pygame.event.get():
+                                    if e.type == pygame.QUIT:
+                                        self.running = False
+                                        pygame.quit()
+                                        return
+
+                                    if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+                                        if self.blackjack_popup.is_play_clicked():
+                                            showing_help = False
+
+                                # redraw paused background
+                                self.screen.blit(snapshot, (0, 0))
+                                self.screen.blit(fade_surface, (0, 0))
+
+                                # draw popup
+                                self.blackjack_popup.draw(self.screen, self.background)
+
+                                pygame.display.update()
+                                self.clock.tick(60)
+                                
+                    # --- EXIT ---
+                    if menu_btn.is_clicked():
+                        self.state = "MENU"
+                        return
+                    
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        return
+
+            # Redraw background + buttons
+            self.screen.blit(snapshot, (0, 0))
+            self.screen.blit(fade_surface, (0, 0))
+
+            for b in buttons:
+                b.draw(self.screen)
+
             pygame.display.update()
             self.clock.tick(60)
